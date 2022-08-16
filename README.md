@@ -21,5 +21,6 @@ This repository contains the api for our proposed AnimeRun dataset.
     python segmat/test_segmat_datasets.py
 
 # TODO
--[ ] More canonical
--[ ] Release re-implemented AnT
+ - [ ] More content
+ - [ ] Release re-implemented AnT
+ - [ ] Add liscense
