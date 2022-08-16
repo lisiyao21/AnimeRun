@@ -1,18 +1,31 @@
 # AnimeRun API
 This repository contains the api for our proposed AnimeRun dataset.
 
+## AnimeRun structure
+
 ```Shell
-├── datasets
-    ├── Sintel
-        ├── test
-        ├── training
-    ├── AnimeRun
-        ├── test
-        ├── train
-    ├── FlyingThings3D
-        ├── frames_cleanpass
-        ├── frames_finalpass
-        ├── optical_flow
+├── AnimeRun1
+    ├── test
+         ├── contour
+         ├── Flow
+              ├── forward
+              ├── backward
+         ├── Frame_Anime
+         ├── LineArea
+         ├── SegMatching
+         ├── Segment
+         ├── UnMatched
+         
+    ├── train
+         ├── contour
+         ├── Flow
+              ├── forward
+              ├── backward
+         ├── Frame_Anime
+         ├── SegMatching
+         ├── Segment
+         ├── UnMatched
+
 ```
 
 ## Unit test
