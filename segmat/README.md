@@ -27,6 +27,6 @@ else:
 # TODO
 - [ ] Clean the code
 - [ ] Clean & add functional scripts (visualization on segment matching...)
-- [ ] Double check values
+- [ ] Double check values & upload pretrained weights
 - [ ] Add more content (link to paper, to project page ...)
 - [ ] Add liscence
