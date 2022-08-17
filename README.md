@@ -35,5 +35,5 @@ This repository contains the api for our proposed AnimeRun dataset.
 
 # TODO
  - [ ] More content
- - [ ] Release re-implemented AnT
+ - [x] Release re-implemented AnT
  - [ ] Add liscense

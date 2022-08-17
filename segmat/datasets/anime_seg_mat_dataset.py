@@ -278,7 +278,7 @@ def fetch_dataloader(args, type='training'):
             #print('Training AnimeRun Segments')
             sys.stdout.flush()
             aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.6, 'do_flip': True}
-            anime_run = AnimeRunSegMat(aug_params, split='training', dstype=args.dstype if hasattr(args, 'dstype') else 'Frame_Anime')
+            anime_run = AnimeRunSegMat(aug_params, split='train', dstype=args.dstype if hasattr(args, 'dstype') else 'Frame_Anime')
 
             train_dataset = anime_run 
             # batch size must be 1 since segment number not unified
@@ -316,21 +316,3 @@ def fetch_dataloader(args, type='training'):
             return train_loader
     else:
         raise NotImplementedError
-
-if __name__ == '__main__':
-    args = argparse.Namespace()
-    args.dstype = 'Frame_Anime'
-    # args.dstype = 'contour'
-    args.batch_size = 1
-    args.stage = 'anime'
-    # args.image_size = (368, 368)
-    loader = fetch_dataloader(args, 'test')
-    count_len = []
-    
-    for data in loader:
-        dict1 = data
-        mi = dict1['all_matches']
-        count_len.append(len(mi[0]))
-    print(np.max(count_len))
-    # pdb.set_trace()
-        
