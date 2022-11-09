@@ -1,5 +1,7 @@
-# AnimeRun API
-This repository contains the api for our proposed AnimeRun dataset.
+# NeurIPS 2022 Dataset & Benchmark Track: AnimeRun: 2D Animation Visual Correspondence from Open Source 3D Movies
+
+This repository contains the api for our proposed AnimeRun dataset and relevant methods.
+Complete and clean code is on the way! Coming soon!!
 
 ## AnimeRun structure
 
