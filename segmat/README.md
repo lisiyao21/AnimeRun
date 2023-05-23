@@ -25,8 +25,8 @@ else:
     python -u main.py --config configs/[your config] --eval
 
 # TODO
-- [ ] Clean the code
-- [ ] Clean & add functional scripts (visualization on segment matching...)
+- [x] Clean the code
+- [x] Clean & add functional scripts (visualization on segment matching...)
 - [ ] Double check values & upload pretrained weights
 - [ ] Add more content (link to paper, to project page ...)
 - [ ] Add liscence
