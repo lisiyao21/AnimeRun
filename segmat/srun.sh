@@ -48,17 +48,3 @@ then
     $TOOLS $PYTHONCMD \
     --eval 
 fi
-# elif [ $2 == "visgt" ];
-# then
-#     $TOOLS $PYTHONCMD \
-#     --visgt 
-# elif [ $2 == "anl" ];
-# then
-#     $TOOLS $PYTHONCMD \
-#     --anl 
-# elif [ $2 == "sample" ];
-# then
-#     $TOOLS $PYTHONCMD \
-#     --sample 
-# fi
-

@@ -53,7 +53,6 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
-import os
 
 class AverageTimer:
     """ Class to help manage printing simple timing of code execution. """
@@ -465,106 +464,16 @@ def plot_matches(kpts0, kpts1, color, lw=1.5, ps=4):
 def seg2color(fillmap, pre_color=None, pre_list=None):
     if pre_color is None:
         colors = np.random.randint(0, 255, (np.max(fillmap) + 1, 3))
-
-    # Id of line is 0, and its color is black.
-        colors[0] = [0, 128, 128]
-
-    else:
-
-        if pre_list is not None:
-            colors = np.ones((np.max(fillmap) + 1, 3)).astype(np.uint8) * 255    
-            colors[np.arange(len(pre_list))[pre_list > - 1]] = pre_color[pre_list[pre_list > - 1]]
-        else:
-            colors = pre_color
-
-
-    return colors[fillmap], colors
-
-def seg2color2_random(fillmap, pre_color=None, pre_list=None):
-    if pre_color is None:
-        colors = np.random.randint(0, 255, (np.max(fillmap) + 1, 3))
-
-    # Id of line is 0, and its color is black.
-        colors[0] = [0, 128, 128]
-
-    else:
-        # print(pre_list.shape, pre_color.shape, np.max(fillmap) + 1)
-        if pre_list is not None:
-            colors = np.random.randint(0, 255, (np.max(fillmap) + 1, 3))   
-            colors[np.arange(len(pre_list))[pre_list > - 1]] = pre_color[pre_list[pre_list > - 1]]
-        else:
-            colors = pre_color
-
-
-    return colors[fillmap], colors
-
-def make_matching_seg_plot(seg0, seg1, matches, path, acc=None):
-
-    if not os.path.exists('color_lib/'):
-        os.mkdir('color_lib/')
-
-    code = path.split('/')[-1].replace('original_', '').replace('Frame_Anime_', '').replace('contour_', '').replace('_gt', '')[:-4] + 'npy'
-
-    if os.path.exists(os.path.join('color_lib', code)):
-        palette = np.load(os.path.join('color_lib', code))
-        color1, palette = seg2color(seg1, pre_color=palette)
-    else:
-
-        color1, palette = seg2color(seg1)
-        np.save(os.path.join('color_lib', code), palette)
-
-    color0, _ = seg2color(seg0, pre_color=palette, pre_list=matches)
-
-    plot_image_pair([color0, color1])
-    if acc is not None:
-        plt.text(0.9, 0.9, str(acc), fontdict={'size': '32', 'color': 'r'})
-
-    fig = plt.gcf()
-    plt.savefig(str(path), bbox_inches='tight', pad_inches=0)
-    plt.close()
-
-def seg_seq_to_color(seg0, seg1, matches, path0, path1):
-    if not os.path.exists('color_lib/'):
-        os.mkdir('color_lib/')
-
-    code1 = path1.replace('/', '_').replace('original_', '').replace('Frame_Anime_', '').replace('contour_', '').replace('_gt', '')[:-4] + '.npy'
-    code0 = path0.replace('/', '_').replace('original_', '').replace('Frame_Anime_', '').replace('contour_', '').replace('_gt', '')[:-4] + '.npy'
-
-    if os.path.exists(os.path.join('color_lib', code1)):
-        palette = np.load(os.path.join('color_lib', code1))
-        color1, palette = seg2color2_random(seg1, pre_color=palette)
-    else:
-
-        color1, palette = seg2color2_random(seg1)
-        np.save(os.path.join('color_lib', code1), palette)
-
-    color0, palette0 = seg2color2_random(seg0, pre_color=palette, pre_list=matches)
-    np.save(os.path.join('color_lib', code0), palette0)
-
-    return color0, color1
-
-
-def seg2color2_ref(fillmap, pre_color=None, pre_list=None, ref=None):
-
-    if pre_color is None:
-        colors = np.random.randint(0, 255, (np.max(fillmap) + 1, 3))
-        for ii in range(np.max(fillmap) + 1):
-            colors[ii]= ref[fillmap == ii][:].mean(axis=0)
         # print('herererer: ', np.max(fillmap) + 1)
     # Id of line is 0, and its color is black.
-        # colors[0] = [0, 128, 128]
+        colors[0] = [0, 128, 128]
         # for ii in range(len(colors)):
         #     if ii != 476:
         #         colors[ii] = [255, 255, 255]
     else:
         # print(pre_list.shape, pre_color.shape, np.max(fillmap) + 1)
-        if pre_list is not None:
-            colors = np.random.randint(254, 255, (np.max(fillmap) + 1, 3))
-            # for ii in range(np.max(fillmap) + 1):
-            #     colors[ii]= ref[fillmap == ii][:].mean(axis=0)   
-            colors[np.arange(len(pre_list))[pre_list > - 1]] = pre_color[pre_list[pre_list > - 1]]
-        else:
-            colors = pre_color
+        colors = np.ones((np.max(fillmap) + 1, 3)).astype(np.uint8) * 255
+        colors[np.arange(len(pre_list))[pre_list > - 1]] = pre_color[pre_list[pre_list > - 1]]
         # for ii in range(len(colors)):
         #     if ii != 490:
         #         colors[ii] = [255, 255, 255]
@@ -573,46 +482,29 @@ def seg2color2_ref(fillmap, pre_color=None, pre_list=None, ref=None):
 
     return colors[fillmap], colors
 
-def seg_seq_to_color_ref(seg0, seg1, matches, path0, path1, ref_path):
+def make_matching_seg_plot(seg0, seg1, matches, path):
+# plot 0 --> 1
+    # print('Line 479, utils', seg0.shape, seg1.shape)
+    color1, palette = seg2color(seg1)
+    # print('wulalalalalal ', matches[490])
+    color0, _ = seg2color(seg0, pre_color=palette, pre_list=matches)
 
-    if not os.path.exists('color_lib/'):
-        os.mkdir('color_lib/')
-    
-    #load image with alpha channel.  use IMREAD_UNCHANGED to ensure loading of alpha channel
-    ref = cv2.imread(ref_path, cv2.IMREAD_UNCHANGED)    
-    if ref.shape[2] == 4:
-        #make mask of where the transparent bits are
-        trans_mask = ref[:,:,3] == 0
-        #replace areas of transparency with white and not transparent
-        ref[trans_mask] = [255, 255, 255, 255]
-        #new image without alpha channel...
-        ref = cv2.cvtColor(ref, cv2.COLOR_BGRA2BGR)
+    plot_image_pair([color0, color1])
 
-    code1 = path1.replace('/', '_').replace('original_', '').replace('Frame_Anime_', '').replace('contour_', '').replace('_gt', '')[:-4] + '.npy'
-    code0 = path0.replace('/', '_').replace('original_', '').replace('Frame_Anime_', '').replace('contour_', '').replace('_gt', '')[:-4] + '.npy'
-    
-
-    if os.path.exists(os.path.join('color_lib', code1)):
-        print('None color lib!!')
-        palette = np.load(os.path.join('color_lib', code1))
-        color1, palette = seg2color2_ref(seg1, pre_color=palette, ref=ref)
-    else:
-
-        color1, palette = seg2color2_ref(seg1, ref=ref)
-        np.save(os.path.join('color_lib', code1), palette)
-
-    color0, palette0 = seg2color2_ref(seg0, pre_color=palette, pre_list=matches, ref=ref)
-    np.save(os.path.join('color_lib', code0), palette0)
-
-    return color0, color1
-
-
-
-
+    fig = plt.gcf()
+    plt.savefig(str(path), bbox_inches='tight', pad_inches=0)
+    plt.close()
 
 def make_matching_plot(seg0, seg1, kpts0, kpts1, mkpts0, mkpts1,
                        color, text, path, name0, name1, show_keypoints=False,
                        fast_viz=False, opencv_display=False, opencv_title='matches'):
+# plot 0 --> 1
+
+    # if fast_viz:
+    #     make_matching_plot_fast(image0, image1, kpts0, kpts1, mkpts0, mkpts1,
+    #                             color, text, path, show_keypoints, 10,
+    #                             opencv_display, opencv_title)
+    #     return
 
     color1, palette = seg2color(seg1)
     color0 = np.ones_like(color1) * 255

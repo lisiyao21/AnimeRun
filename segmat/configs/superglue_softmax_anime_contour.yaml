@@ -29,11 +29,12 @@ data:
         # img_root: /mnt/lustre/syli/AnimeRun/interp/data/datasets/test_2k_540p
         # seg_root: /mnt/lustre/syli/AnimeRun/interp/data/datasets/test_2k_540p_segment
 testing:
-    ckpt_epoch: 40
-batch_size: 1
-expname: ant_softmax_anime_contour_bsz16
+    ckpt_epoch: 29
+batch_size: 16
+
+expname: ant_softmax_anime_contour_bsz16_anime_v2
 epoch: 500
-save_per_epochs: 20
+save_per_epochs: 1
 log_per_updates: 1
-test_freq: 1
+test_freq: 10
 seed: 42

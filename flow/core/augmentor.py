@@ -74,19 +74,19 @@ def normalize_keypoints(kpts, image_shape):
     # print(kpts.size(), center[:, None, :].size(), scaling[:, None, :].size())
     return (kpts - center[:, None, :]) / scaling[:, None, :]
 
-class ThreeLayerEncoder(nn.Module):
+class ThreeLayerDecoder(nn.Module):
     """ Joint encoding of visual appearance and location using MLPs"""
     def __init__(self, enc_dim):
         super().__init__()
         # input must be 3 channel (r, g, b)
-        self.layer1 = nn.Conv2d(3, enc_dim//4, 7, padding=3)
+        self.layer1 = nn.Conv2d(enc_dim, enc_dim, 3, padding=1)
         self.non_linear1 = nn.ReLU()
-        self.layer2 = nn.Conv2d(enc_dim//4, enc_dim//2, 3, padding=1)
+        self.layer2 = nn.Conv2d(enc_dim, enc_dim, 3, padding=1)
         self.non_linear2 = nn.ReLU()
-        self.layer3 = nn.Conv2d(enc_dim//2, enc_dim, 3, padding=1)
+        self.layer3 = nn.Conv2d(enc_dim, enc_dim, 1)
 
-        self.norm1 = nn.InstanceNorm2d(enc_dim//4)
-        self.norm2 = nn.InstanceNorm2d(enc_dim//2)
+        self.norm1 = nn.InstanceNorm2d(enc_dim)
+        self.norm2 = nn.InstanceNorm2d(enc_dim)
         self.norm3 = nn.InstanceNorm2d(enc_dim)
 
         for m in self.modules():
@@ -108,18 +108,32 @@ class SegmentDescriptor(nn.Module):
     """ Joint encoding of visual appearance and location using MLPs"""
     def __init__(self, enc_dim):
         super().__init__()
-        self.encoder = ThreeLayerEncoder(enc_dim)
+        # self.encoder = ThreeLayerEncoder(enc_dim)
         # self.super_pixel_pooling = 
         # use scatter
         # nn.init.constant_(self.encoder[-1].bias, 0.0)
 
     def forward(self, img, seg):
-        x = self.encoder(img)
+        # x = self.encoder(img)
         n, c, h, w = x.size()
         assert((h, w) == img.size()[2:4])
         return super_pixel_pooling(x.view(n, c, -1), seg.view(-1).long(), reduce='mean')
         # here return size is [1]xCx|Seg|
 
+class SegmentAdaptor(nn.Module):
+    """ Joint encoding of visual appearance and location using MLPs"""
+    def __init__(self, enc_dim):
+        super().__init__()
+        self.encoder = ThreeLayerDecoder(enc_dim)
+        # self.super_pixel_pooling = 
+        # use scatter
+        # nn.init.constant_(self.encoder[-1].bias, 0.0)
+
+    def forward(self, desc, seg):
+        x = desc[seg]
+        x = self.decoder(x)
+        return x
+        # here return size is [1]xCxHxW
 
 class KeypointEncoder(nn.Module):
     """ Joint encoding of visual appearance and location using MLPs"""
@@ -217,8 +231,6 @@ def log_optimal_transport(scores, alpha, iters: int):
     bins1 = alpha.expand(b, 1, n)
     alpha = alpha.expand(b, 1, 1)
 
-    # pad additional scores for unmatcheed (to -1)
-    # alpha is the learned threshold
     couplings = torch.cat([torch.cat([scores, bins0], -1),
                            torch.cat([bins1, alpha], -1)], 1)
 
@@ -231,30 +243,12 @@ def log_optimal_transport(scores, alpha, iters: int):
     Z = Z - norm  # multiply probabilities by M+N
     return Z
 
-def transport(scores, alpha):
-    """ Perform Differentiable Optimal Transport in Log-space for stability"""
-    b, m, n = scores.shape
-    one = scores.new_tensor(1)
-    ms, ns = (m*one).to(scores), (n*one).to(scores)
-
-    bins0 = alpha.expand(b, m, 1)
-    bins1 = alpha.expand(b, 1, n)
-    alpha = alpha.expand(b, 1, 1)
-
-    # pad additional scores for unmatcheed (to -1)
-    # alpha is the learned threshold
-    couplings = torch.cat([torch.cat([scores, bins0], -1),
-                           torch.cat([bins1, alpha], -1)], 1)
-
-    return couplings
-
-
 
 def arange_like(x, dim: int):
     return x.new_ones(x.shape[dim]).cumsum(0) - 1  # traceable in 1.1
 
 
-class SuperGlueSoftMax(nn.Module):
+class Augmentor(nn.Module):
     """SuperGlue feature matching middle-end
 
     Given two sets of keypoints and locations, we determine the
@@ -287,7 +281,7 @@ class SuperGlueSoftMax(nn.Module):
         default_config = argparse.Namespace()
         default_config.descriptor_dim = 128
         # default_config.weights = 
-        default_config.keypoint_encoder = [32, 64, 128]
+        # default_config.keypoint_encoder = [32, 64, 128]
         default_config.GNN_layers = ['self', 'cross'] * 9
         default_config.sinkhorn_iterations = 100
         default_config.match_threshold = 0.2
@@ -312,7 +306,7 @@ class SuperGlueSoftMax(nn.Module):
 
         bin_score = torch.nn.Parameter(torch.tensor(1.))
         self.register_parameter('bin_score', bin_score)
-        self.segment_desc = SegmentDescriptor(self.config.descriptor_dim)
+        self.segment_adaptor = SegmentAdaptor(self.config.descriptor_dim)
 
         # assert self.config.weights in ['indoor', 'outdoor']
         # path = Path(__file__).parent
@@ -325,22 +319,29 @@ class SuperGlueSoftMax(nn.Module):
         """Run SuperGlue on a pair of keypoints and descriptors"""
         # print(data['segment0'].size())
         # desc0, desc1 = data['descriptors0'].float()(), data['descriptors1'].float()()
-        desc0, desc1 = self.segment_desc(data['image0'], data['segment0']), self.segment_desc(data['image1'], data['segment1'])
+        desc0, desc1 = self.segment_adaptor(data['feat0'], data['segment0']), self.segment_adaptor(data['feat1'], data['segment1'])
         # print(desc0.size())
         kpts0, kpts1 = data['keypoints0'].float(), data['keypoints1'].float()
 
- 
-        if kpts0.shape[1] < 2 or kpts1.shape[1] < 2:  # no keypoints
-            shape0, shape1 = kpts0.shape[:-1], kpts1.shape[:-1]
-            # print(data['file_name'])
-            return {
-                'matches0': kpts0.new_full(shape0, -1, dtype=torch.int)[0],
-                'matching_scores0': kpts0.new_zeros(shape0)[0],
-                'skip_train': True
-            }
+        # desc0 = desc0.transpose(0,1)
+        # desc1 = desc1.transpose(0,1)
+        # kpts0 = torch.reshape(kpts0, (1, -1, 2))
+        # kpts1 = torch.reshape(kpts1, (1, -1, 2))
 
-        file_name = data['file_name']
-        all_matches = data['all_matches'] if 'all_matches' in data else None# shape = (1, K1)
+        # if kpts0.shape[1] < 2 or kpts1.shape[1] < 2:  # no keypoints
+        #     shape0, shape1 = kpts0.shape[:-1], kpts1.shape[:-1]
+        #     # print(data['file_name'])
+        #     return {
+        #         'matches0': kpts0.new_full(shape0, -1, dtype=torch.int)[0],
+        #         # 'matches1': kpts1.new_full(shape1, -1, dtype=torch.int)[0],
+        #         'matching_scores0': kpts0.new_zeros(shape0)[0],
+        #         # 'matching_scores1': kpts1.new_zeros(shape1)[0],
+        #         'skip_train': True
+        #     }
+
+        # file_name = data['file_name']
+        # all_matches = data['all_matches'] if 'all_matches' in data else None# shape = (1, K1)
+        # .permute(1,2,0) # shape=torch.Size([1, 87,])
         
         # positional embedding
         # Keypoint normalization.
@@ -348,10 +349,12 @@ class SuperGlueSoftMax(nn.Module):
         kpts1 = normalize_keypoints(kpts1, data['image1'].shape)
 
         # Keypoint MLP encoder.
+        # print(data['file_name'])
+        # print(kpts0.size())
     
         pos0 = self.kenc(kpts0)
         pos1 = self.kenc(kpts1)
-
+        # print(desc0.size(), pos0.size())
         desc0 = desc0 + pos0
         desc1 = desc1 + pos1
 
@@ -360,59 +363,91 @@ class SuperGlueSoftMax(nn.Module):
 
         # Final MLP projection.
         mdesc0, mdesc1 = self.final_proj(desc0), self.final_proj(desc1)
+        return mdesc0, mdesc1, None
+        # TODO + loss
 
-        # Compute matching descriptor distance.
-        scores = torch.einsum('bdn,bdm->bnm', mdesc0, mdesc1)
 
-        # b k1 k2
-        scores = scores / self.config.descriptor_dim**.5
+        # # Compute matching descriptor distance.
+        # # print(mdesc0.size(), mdesc1.size())
+        # scores = torch.einsum('bdn,bdm->bnm', mdesc0, mdesc1)
+        # # #print('here1!!', scores.size())
 
-        # Run the optimal transport.
-        b, m, n = scores.size()
-    
-        scores = transport(scores, self.bin_score)
+        # # b k1 k2
+        # scores = scores / self.config.descriptor_dim**.5
+        # # print(scores.size())
+        # # Run the optimal transport.
+        # scores = log_optimal_transport(
+        #     scores, self.bin_score,
+        #     iters=self.config.sinkhorn_iterations)
 
-        weights = data['num0'].float().cuda()
-        avg_w = weights.mean()
-        all_matches_origin = all_matches.clone() if all_matches is not None else None
+        # # print(scores)
+        # # print(scores.sum())
+        # # print(scores.sum(1))
+        # # print(scores.sum(0))
 
-        if all_matches is not None:
-            all_matches[all_matches == -1] = n
-            loss = nn.functional.cross_entropy(scores[:, :-1, :].view(-1, n+1), all_matches.long().view(-1), reduction='mean')
-            loss = loss.mean()
+        # # Get the matches with score above "match_threshold".
+        # max0, max1 = scores[:, :-1, :-1].max(2), scores[:, :-1, :-1].max(1)
+        # indices0, indices1 = max0.indices, max1.indices
+        # mutual0 = arange_like(indices0, 1)[None] == indices1.gather(1, indices0)
+        # mutual1 = arange_like(indices1, 1)[None] == indices0.gather(1, indices1)
+        # zero = scores.new_tensor(0)
+        # mscores0 = torch.where(mutual0, max0.values.exp(), zero)
+        # mscores1 = torch.where(mutual1, mscores0.gather(1, indices1), zero)
+        # valid0 = mutual0 & (mscores0 > self.config.match_threshold)
+        # valid1 = mutual1 & valid0.gather(1, indices1)
+        # indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
+        # indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
 
-        scores = nn.functional.softmax(scores, dim=2)
-
-        max0, max1 = scores[:, :-1, :].max(2), scores[:, :, :-1].max(1)
-        indices0, indices1 = max0.indices, max1.indices
-        mscores0 = max0.values
-
-        valid0 = indices0 < n
-        valid1 = indices1 < m
-        indices0 = torch.where(valid0, indices0, indices0.new_tensor(-1))
-        indices1 = torch.where(valid1, indices1, indices1.new_tensor(-1))
-
-        if all_matches is not None:
-            return {
-                'matches0': indices0[0], # use -1 for invalid match
-                'matching_scores0': mscores0[0],
-                'loss': loss,
-                'skip_train': False,
-                'accuracy': ((all_matches_origin[0] == indices0[0]).sum() / len(all_matches_origin[0])).item(),
-                'area_accuracy': (torch.tensor([ (data['segment0'] == ii).sum() for ii in torch.arange(0, all_matches_origin[0].shape[0])[all_matches_origin[0] == indices0[0]]]).sum() / (weights.sum() * 1.0)).item(),
-                'valid_accuracy': (((all_matches_origin[0] == indices0[0]) & (all_matches_origin[0] != -1)).sum() / (all_matches_origin[0] != -1).sum()).item(),
-                'invalid_accuracy': (((all_matches_origin[0] == indices0[0]) & (all_matches_origin[0] == -1)).sum() / (all_matches_origin[0] == -1).sum()).item() if (all_matches_origin[0] == -1).sum() > 0 else None
-            }
-        else:
-            return {
-                'matches0': indices0[0], # use -1 for invalid match
-                'matching_scores0': mscores0[0],
-                'loss': -1,
-                'skip_train': True,
-                'accuracy': -1,
-                'area_accuracy': -1,
-                'valid_accuracy': -1,
-            }
+        # # check if indexed correctly
+        # # #print(scores.size())
+        # loss = []
+        # weights = data['num0'].float().cuda()
+        # avg_w = weights.mean()
+        # # print(weights)
+        
+        # #print(scores.size())
+        # if all_matches is not None:
+        #     for i in range(len(all_matches[0])):
+        #         # x = all_matches[0][i][0]
+        #         x = i
+        #         y = all_matches[0][i].long()
+        #         # #print(y.data.cpu().numpy())
+                
+        #         loss.append(-scores[0][x][y] * weights[0][0][x]/avg_w) # check batch size == 1 ?
+        # # print(len(indices1[0]))
+        
+        # # for j in range(len(indices1[0])):
+        # #     if j not in all_matches[0]:
+        # #         loss.append(-scores[0][-1][j])
+        # # loss.append()
+        # # for p0 in unmatched0:
+        # #     loss += -torch.log(scores[0][p0][-1])
+        # # for p1 in unmatched1:
+        # #     loss += -torch.log(scores[0][-1][p1])
+        #     loss_mean = torch.mean(torch.stack(loss))
+        #     loss_mean = torch.reshape(loss_mean, (1, -1))
+        #     #print((all_matches[0] == indices0[0]).sum())
+        #     return {
+        #         'matches0': indices0[0], # use -1 for invalid match
+        #         # 'matches1': indices1[0], # use -1 for invalid match
+        #         'matching_scores0': mscores0[0],
+        #         # 'matching_scores1': mscores1[0],
+        #         'loss': loss_mean[0],
+        #         'skip_train': False,
+        #         'accuracy': ((all_matches[0] == indices0[0]).sum() / len(all_matches[0])).item(),
+        #         'area_accuracy': (torch.tensor([ (data['segment0'] == ii).sum() for ii in torch.arange(0, all_matches[0].shape[0])[all_matches[0] == indices0[0]]]).sum() / (weights.sum() * 1.0)).item(),
+        #         'valid_accuracy': (((all_matches[0] == indices0[0]) & (all_matches[0] != -1)).sum() / (all_matches[0] != -1).sum()).item(),
+        #     }
+        # else:
+        #     return {
+        #         'matches0': indices0[0], # use -1 for invalid match
+        #         'matching_scores0': mscores0[0],
+        #         'loss': -1,
+        #         'skip_train': True,
+        #         'accuracy': -1,
+        #         'area_accuracy': -1,
+        #         'valid_accuracy': -1,
+        #     }
 
 
 if __name__ == '__main__':

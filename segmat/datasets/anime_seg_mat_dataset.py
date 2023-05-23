@@ -161,7 +161,7 @@ class AnimeSegMatDataset(data.Dataset):
                 'num1': numpt2,
                 'segment0': seg1,
                 'segment1': seg2,
-                'all_matches': mat_index, # segment index matching 
+                'all_matches': mat_index,
                 'file_name': file_name,
                 # 'with_match': True
             } 
@@ -197,7 +197,7 @@ class AnimeSegMatDataset(data.Dataset):
 
 
 class AnimeRunSegMat(AnimeSegMatDataset):
-    def __init__(self, aug_params=None, split='training', root='/mnt/lustre/syli/AnimeRun/flow/data/AnimeRun1', dstype='Frame_Anime'):
+    def __init__(self, aug_params=None, split='train', root='/mnt/lustre/syli/AnimeRun/flow/data/AnimeRun_v2', dstype='Frame_Anime'):
         super(AnimeRunSegMat, self).__init__(aug_params)
         # root = root
         seg_root = osp.join(root, split, 'Segment')
@@ -227,14 +227,14 @@ class AnimeRunSegMat(AnimeSegMatDataset):
         # print('')
 
 class CreativeFlow(AnimeSegMatDataset):
-    def __init__(self, aug_params=None, split='test', root='/mnt/lustre/syli/AnimeRun/flow/data/CreativeFlow/decompressed', dstype='composite'):
+    def __init__(self, aug_params=None, split='train', root='/mnt/lustre/syli/AnimeRun/flow/data/CreativeFlow/decompressed', dstype='composite'):
         super(CreativeFlow, self).__init__(aug_params)
 
         # if split is 'train':
         # flow_root = osp.join(root, split)
         image_root = osp.join(root, split)
-        index_root = osp.join(root, 'test_seg_matching')
-        seg_root = osp.join(root, 'test_segment')
+        index_root = osp.join(root, 'train_seg_matching')
+        seg_root = osp.join(root, 'train_segment')
 
         for scene in os.listdir(index_root):
             # if split == 'test':
@@ -268,13 +268,33 @@ class ATDSeg(AnimeSegMatDataset):
         print('Len of segment pair is ', len(self.seg_list))
         print('Len of Anime pair is ', len(self.image_list))
 
+
+class AnimeSeq(AnimeSegMatDataset):
+    def __init__(self, aug_params=None, image_root='/mnt/lustre/syli/AnimeRun/flow/data/clips_for_color/color', seg_root='/mnt/lustre/syli/AnimeRun/flow/data/clips_for_color/segment'):
+        super(AnimeSeq, self).__init__(aug_params)
+        # ATD only support test
+        self.index_list = None
+
+        for scene in os.listdir(seg_root):
+            # if split == 'test':
+            image_list = sorted(glob(osp.join(image_root, scene, '*.png')), reverse=True)
+            seg_list = sorted(glob(osp.join(seg_root, scene, '*.npy')), reverse=True)
+
+            if len(image_list) == len(seg_list):
+                for i in range(len(seg_list)-1):
+                    self.image_list += [ [image_list[i], image_list[i+1]] ]
+                    # self.extra_info += [ (scene, i) ] # scene and frame_id
+                    self.seg_list += [ [seg_list[i], seg_list[i+1]] ]
+        print('Len of segment pair is ', len(self.seg_list))
+        print('Len of Anime pair is ', len(self.image_list))
+
 def worker_init_fn(worker_id):                                                          
     np.random.seed(np.random.get_state()[1][0] + worker_id)
 
-def fetch_dataloader(args, type='training'):
+def fetch_dataloader(args, type='train'):
 
     if args.stage == 'anime':
-        if type == 'training':
+        if type == 'train':
             #print('Training AnimeRun Segments')
             sys.stdout.flush()
             aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.6, 'do_flip': True}
@@ -304,11 +324,19 @@ def fetch_dataloader(args, type='training'):
             pin_memory=True, shuffle=False, num_workers=4, drop_last=False, worker_init_fn=worker_init_fn)
         return test_loader
 
+    elif args.stage == 'aseq':
+        # A piece of anime sequence without GT labels
+        aug_params = None
+        atd12k = AnimeSeq(aug_params, args.img_root, args.seg_root)
+
+        test_loader = data.DataLoader(atd12k, batch_size=1, 
+            pin_memory=True, shuffle=False, num_workers=4, drop_last=False, worker_init_fn=worker_init_fn)
+        return test_loader
+
     elif args.stage == 'creative':
-        # creative only used for train
         if type == 'training':
             aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.6, 'do_flip': True}
-            creative = CreativeFlow(aug_params, split='test', dstype=args.dstype if hasattr(args, 'dstype') else 'composite')
+            creative = CreativeFlow(aug_params, split='train', dstype=args.dstype if hasattr(args, 'dstype') else 'composite')
 
             train_dataset = creative 
             train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
@@ -316,3 +344,21 @@ def fetch_dataloader(args, type='training'):
             return train_loader
     else:
         raise NotImplementedError
+
+if __name__ == '__main__':
+    args = argparse.Namespace()
+    args.dstype = 'Frame_Anime'
+    # args.dstype = 'contour'
+    args.batch_size = 1
+    args.stage = 'anime'
+    # args.image_size = (368, 368)
+    loader = fetch_dataloader(args, 'test')
+    count_len = []
+    
+    for data in loader:
+        dict1 = data
+        mi = dict1['all_matches']
+        count_len.append(len(mi[0]))
+    print(np.max(count_len))
+    # pdb.set_trace()
+        

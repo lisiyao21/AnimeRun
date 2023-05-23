@@ -20,13 +20,12 @@ import numpy as np
 import models
 import datetime
 import sys
+import json
 
 import matplotlib.cm as cm
 from models.utils import make_matching_seg_plot
 
 warnings.filterwarnings('ignore')
-
-# a, b, c, d = check_data_distribution('/mnt/lustre/lisiyao1/dance/dance2/DanceRevolution/data/aistpp_train')
 
 import matplotlib.pyplot as plt
 import pdb
@@ -41,22 +40,8 @@ class SGM():
         opt = self.config
         print(opt)
 
-        # store viz results
-        # eval_output_dir = Path(self.expdir)
-        # eval_output_dir.mkdir(exist_ok=True, parents=True)
-
-        # print('Will write visualization images to',
-        #     'directory \"{}\"'.format(eval_output_dir))
-
-        # load training data
-        
+    
         model = self.model
-
-        # if torch.cuda.is_available():
-        #     model.cuda() # make sure it trains on GPU
-        # else:
-        #     print("### CUDA not available ###")
-            # return
         optimizer = self.optimizer
         schedular = self.schedular
         mean_loss = []
@@ -81,19 +66,10 @@ class SGM():
             batch_iter = 0
             model.train()
             for i, pred in enumerate(train_loader):
-                # print(pred['file_name'])
                 data = model(pred)
-                # print(len(pred['all_matches'][0]), 'wula!       \n')
-                # if len(pred['all_matches'][0]) == 1:
-                #     continue
                 for k, v in pred.items():
                     pred[k] = v[0]
                 pred = {**pred, **data}
-
-                # if pred['skip_train'] == True: # image has no keypoint
-                #     continue
-                # process loss
-                # TODO Accumulate loss!
 
                 if not pred['skip_train']:
                     loss = pred['loss'] / opt.batch_size
@@ -153,7 +129,7 @@ class SGM():
                     mean_acc = []
                     mean_valid_acc = []
                     model.eval()
-                    for i_eval, pred in enumerate(tqdm(test_loader, desc='Generating Dance Poses')):
+                    for i_eval, pred in enumerate(tqdm(test_loader, desc='Testing segment matching...')):
                         data = model(pred)
                         for k, v in pred.items():
                             pred[k] = v[0]
@@ -161,14 +137,9 @@ class SGM():
                         image0, image1 = (pred['image0'].cpu().numpy()[0] + 1)*255.*0.5, (pred['image1'].cpu().numpy()[0] + 1)*255.*0.5
                         seg0, seg1 = pred['segment0'].data.cpu().numpy()[0], pred['segment1'].data.cpu().numpy()[0]
                         kpts0, kpts1 = pred['center_points0'].cpu().numpy(), pred['center_points1'].cpu().numpy()
-                        # matches = pred['matches0'].cpu().detach().numpy()
                         matches, conf = pred['matches0'].long().cpu().detach().numpy(), pred['matching_scores0'].cpu().detach().numpy()
                 
-                    # pred['matching_scores0'].cpu().detach().numpy()
-                    # image0 = read_image_modified(image0, opt.resize, opt.resize_float)
-                    # image1 = read_image_modified(image1, opt.resize, opt.resize_float)
                         valid = matches > -1
-                        # print(kpts0.shape, valid.shape)
                         mkpts0 = kpts0[valid]
                         mkpts1 = kpts1[matches[valid]]
                         mconf = conf[valid]
@@ -189,30 +160,9 @@ class SGM():
                     print('Epoch [{}/{}]], Acc.: {:.4f}, Valid Acc.{:.4f}' 
                         .format(epoch, opt.epoch, np.mean(mean_acc), np.mean(mean_valid_acc)) )
                     sys.stdout.flush()
-                        # make_matching_plot(
-                        #     image0, image1, kpts0, kpts1, mkpts0, mkpts1, color,
-                        #     text, viz_path, stem, stem, True,
-                        #     True, False, 'Matches')
                         
 
             self.schedular.step()
-            # for param_group in self.optimizer.param_groups:
-            #     print(param_group['lr'])
-
-                    # process checkpoint for every 5e3 images
-                    # if (i+1) % 5e3 == 0:
-                    #     model_out_path = "model_epoch_{}.pth".format(epoch)
-                    #     torch.save(superglue, model_out_path)
-                    #     print ('Epoch [{}/{}], Step [{}/{}], Checkpoint saved to {}' 
-                    #         .format(epoch, opt.epoch, i+1, len(train_loader), model_out_path)) 
-
-            # save checkpoint when an epoch finishes
-            # epoch_loss /= len(train_loader)
-            # model_out_path = "model_epoch_{}.pth".format(epoch)
-            # torch.save(superglue, model_out_path)
-            # print("Epoch [{}/{}] done. Epoch Loss {}. Checkpoint saved to {}"
-            #     .format(epoch, opt.epoch, epoch_loss, model_out_path))
-            
 
 
     def eval(self):
@@ -222,7 +172,6 @@ class SGM():
             config = self.config
             epoch_tested = self.config.testing.ckpt_epoch
             ckpt_path = os.path.join(self.ckptdir, f"epoch_{epoch_tested}.pt")
-            # self.device = torch.device('cuda' if config.cuda else 'cpu')
             print("Evaluation...")
             checkpoint = torch.load(ckpt_path)
             model.load_state_dict(checkpoint['model'])
@@ -230,6 +179,8 @@ class SGM():
 
             if not os.path.exists(os.path.join(self.evaldir, 'epoch' + str(epoch_tested))):
                 os.mkdir(os.path.join(self.evaldir, 'epoch' + str(epoch_tested)))
+            if not os.path.exists(os.path.join(self.evaldir, 'epoch' + str(epoch_tested), 'jsons')):
+                os.mkdir(os.path.join(self.evaldir, 'epoch' + str(epoch_tested), 'jsons'))
             eval_output_dir = os.path.join(self.evaldir, 'epoch' + str(epoch_tested))    
                 
             test_loader = self.test_loader
@@ -239,9 +190,7 @@ class SGM():
             mean_invalid_acc = []
             mean_large300_acc = []
 
-            for i_eval, pred in enumerate(tqdm(test_loader, desc='Generating Dance Poses')):
-                # if i_eval == 34:
-                #     continue
+            for i_eval, pred in enumerate(tqdm(test_loader, desc='Testing Segment Matching...')):
                 data = model(pred)
                 for k, v in pred.items():
                     pred[k] = v[0]
@@ -251,10 +200,8 @@ class SGM():
                 kpts0, kpts1 = pred['center_points0'].cpu().numpy(), pred['center_points1'].cpu().numpy()
                 # matches = pred['matches0'].cpu().detach().numpy()
                 matches, conf = pred['matches0'].long().cpu().detach().numpy(), pred['matching_scores0'].cpu().detach().numpy()
-                matches_gt = pred['all_matches'].long().cpu().detach().numpy()
-            # pred['matching_scores0'].cpu().detach().numpy()
-            # image0 = read_image_modified(image0, opt.resize, opt.resize_float)
-            # image1 = read_image_modified(image1, opt.resize, opt.resize_float)
+                matches_gt = pred['all_matches'].long().cpu().detach().numpy() if 'all_matches' in pred else None
+
                 valid = matches > -1
                 # print(kpts0.shape, valid.shape)
                 mkpts0 = kpts0[valid]
@@ -269,17 +216,23 @@ class SGM():
                 
                 mean_acc.append(pred['accuracy'])
                 mean_valid_acc.append(pred['valid_accuracy'])
-                if pred['invalid_accuracy'] is not None:
+                if 'invalid_accuracy' in pred and pred['invalid_accuracy'] is not None:
                     mean_invalid_acc.append(pred['invalid_accuracy'])
                 if seg1.max() > 300:
                     mean_large300_acc.append(pred['accuracy'])
 
-                # make_matching_plot(
-                #     image0, image1, kpts0, kpts1, mkpts0, mkpts1, color,
-                #     text, viz_path, stem, stem, True,
-                #     True, False, 'Matches')
-                make_matching_seg_plot(seg0, seg1, matches, viz_path, np.round(pred['accuracy'], 2))
-                make_matching_seg_plot(seg0, seg1, matches_gt, viz_path_gt)
+                make_matching_seg_plot(seg0, seg1, matches, viz_path)
+
+                match_dict = dict()
+                for ii in range(len(matches)):
+                    match_dict[str(ii)] = [ int(matches[ii]) ]
+                
+                json_path = os.path.join(self.evaldir, 'epoch' + str(epoch_tested), 'jsons', pred['file_name'].split('/')[-1] + '.json')
+                with open(json_path, 'w') as fp:
+                    json.dump(match_dict, fp)                
+
+                if matches_gt is not None:
+                    make_matching_seg_plot(seg0, seg1, matches_gt, viz_path_gt)
 
             log.log_eval({
                 'updates': self.config.testing.ckpt_epoch,
@@ -288,8 +241,6 @@ class SGM():
                 'Invalid Accuracy': np.mean(mean_invalid_acc),
                 '>300 Accuracy': np.mean(mean_large300_acc),
                 })
-                # print ('Epoch [{}/{}]], Acc.: {:.4f}, Valid Acc.{:.4f}' 
-                #     .format(epoch, opt.epoch, np.mean(mean_acc), np.mean(mean_valid_acc)) )
             sys.stdout.flush()
 
     def _build(self):
@@ -318,14 +269,13 @@ class SGM():
 
     def _build_train_loader(self):
         config = self.config
-        self.train_loader = fetch_dataloader(config.data.train, type='training')
+        self.train_loader = fetch_dataloader(config.data.train, type='train')
 
     def _build_test_loader(self):
         config = self.config
         self.test_loader = fetch_dataloader(config.data.test, type='test')
 
     def _build_optimizer(self):
-        #model = nn.DataParallel(model).to(device)
         config = self.config.optimizer
         try:
             optim = getattr(torch.optim, config.type)
@@ -358,15 +308,6 @@ class SGM():
         if not os.path.exists(self.evaldir):
             os.mkdir(self.evaldir)
 
-        
-
-        # self.ckptdir = os.path.join(self.expdir, "ckpt")
-        # if not os.path.exists(self.ckptdir):
-        #     os.mkdir(self.ckptdir)
-
-
-
-        
 
 
 

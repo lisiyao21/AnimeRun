@@ -1,5 +1,6 @@
 *__pycache__*
-*experiments/
-*experiments/*
+!experiments/.gitkeep
+experiments/*
+*.pth
 *log/
 *log/*
