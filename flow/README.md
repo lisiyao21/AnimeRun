@@ -7,4 +7,4 @@
 
 ## Pretrained weights
 
-[Google Drive[(https://drive.google.com/drive/folders/16fA0w1vaaU4gD7QVKRSfTRUBejan0ib8?usp=sharing)
+[Google Drive](https://drive.google.com/drive/folders/16fA0w1vaaU4gD7QVKRSfTRUBejan0ib8?usp=sharing)
