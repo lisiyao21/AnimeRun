@@ -5,9 +5,13 @@ Code for self-implemented Animation Transformer (AnT). Our experimental environm
 ## TODO
 - [x] Clean the code
 - [x] Clean & add functional scripts (visualization on segment matching...)
-- [ ] Double check values & upload pretrained weights
+- [x] Double check values & upload pretrained weights
 - [ ] Add more content (link to paper, to project page ...)
 - [x] Add liscence
+
+### Pretrained weights
+The pretrained weights can be downloaded from [[Google Drive](https://drive.google.com/file/d/1Ryt4ngytVRCp-FJdIKxw4M5OpSRw8bwO/view?usp=sharing)] link.
+
 
 ### Training
 if using slurm:
