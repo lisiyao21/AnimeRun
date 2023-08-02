@@ -1,6 +1,8 @@
 # Segment Matching (Reimplemented AnT)
 
-Code for self-implemented Animation Transformer (AnT). Our experimental environment uses Pytorch1.7
+Code for self-implemented Animation Transformer (AnT). Our experimental environment uses Pytorch1.7.
+
+In concerete, AnT takes two RGB frames and their segment labels as input and predicts segment-wise correspondece between these two images. Please refer to the original [paper](https://openaccess.thecvf.com/content/ICCV2021/html/Casey_The_Animation_Transformer_Visual_Correspondence_via_Segment_Matching_ICCV_2021_paper.html).
 
 ## TODO
 - [x] Clean the code
@@ -31,6 +33,16 @@ if using slurm:
 else:
 
     python -u main.py --config configs/[your config] --eval
+
+In detail, after downloading the pretrained weights, move the two folders 'ant_softmax_anime_v2_bsz16' and 'ant_softmax_anime_contour_bsz16_anime_v2' into 'experiments' folder. These two weights are self-implemented AnT trained on colored frames and contour lines, respectively. To test them, run
+
+    sh srun.sh configs/superglue_softmax_anime.yaml eval [partation name] 1
+
+and 
+
+    sh srun.sh configs/superglue_softmax_anime_contour.yaml eval [partation name] 1
+
+respectively.
 
 ### License
 
